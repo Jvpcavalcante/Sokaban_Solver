@@ -2,11 +2,15 @@ import pygame as pg
 import heapq
 from collections import deque
 import time
+from threading import Thread
 
-WINDOW_HEIGHT = 800
+
 WINDOW_WIDTH = 1366
+WINDOW_HEIGHT = 800
+
 ALT_X = 60
 ALT_Y = 60
+
 
 """
 FUNCOES UTILITARIAS
@@ -41,21 +45,9 @@ def mostra(mat):
 
 
 def desenha_board():
-    f0 = pg.image.load("sprites/0.png").convert()
-    f1 = pg.image.load("sprites/1.png").convert()
-    f2 = pg.image.load("sprites/2.png").convert()
-    f3 = pg.image.load("sprites/3.png").convert()
-    f4 = pg.image.load("sprites/4.png").convert()
-    f5 = pg.image.load("sprites/5.png").convert()
-    f6 = pg.image.load("sprites/6.png").convert()
-
-    imgs = [f0,f1,f2,f3,f4,f5,f6]
-
     for i in range(len(Jogo)):
         for j in range(len(Jogo[i])):
             Janela.blit(imgs[Jogo[i][j]],(j*ALT_X,i*ALT_Y))
-
-    Janela.blit(f0,(0,0))
 
     pg.display.flip()
 
@@ -185,7 +177,7 @@ def movs_sem_andar(movs):
 
     return cnt
 
-def bfs(pos_objetivos,pos_paredes):
+def bfs(pos_objetivos,pos_paredes,resultado):
     t1 = time.time()
     player_start = kd_player()
     caixas_start = kd_caixas()
@@ -201,7 +193,9 @@ def bfs(pos_objetivos,pos_paredes):
 
         if vencemo(estado[-1][-1]):
             print("\ntempo: %.2f s" % (time.time() - t1))
-            return str(acao_ate_aq)[5:-2].replace("', '"," ")
+            fim = str(acao_ate_aq)[5:-2].replace("', '","")
+            resultado[0] = fim
+            return fim
         
         if estado[-1] not in visto:
             visto.add(estado[-1])
@@ -265,23 +259,38 @@ def norm_tenta_mov(direc):
             return mov[2]
 
 
+def auto_to_norm(carac):
+    dic = {"w":(-1,0),"s":(1,0),"a":(0,-1),"d":(0,1)}
+    norm_faz_movimento(kd_player(),dic[carac.lower()])
+    desenha_board()
+        
 
 """
 A GRANDE E PODEROSA MAIN
 """
 
 def main():
-    global Janela, Tempo, Jogo
+    global Janela, Tempo, Jogo, imgs
     
     pg.init()
     Janela = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     Tempo = pg.time.Clock()
 
-    Jogo = vira_mat("lvls/lvl1.txt")
+    Jogo = vira_mat("lvls/lvl3.txt")
     mostra(Jogo)
 
     pos_paredes = kd_paredes()
     pos_objetivos = kd_objetivos()
+
+    f0 = pg.image.load("sprites/0.png").convert()
+    f1 = pg.image.load("sprites/1.png").convert()
+    f2 = pg.image.load("sprites/2.png").convert()
+    f3 = pg.image.load("sprites/3.png").convert()
+    f4 = pg.image.load("sprites/4.png").convert()
+    f5 = pg.image.load("sprites/5.png").convert()
+    f6 = pg.image.load("sprites/6.png").convert()
+
+    imgs = [f0,f1,f2,f3,f4,f5,f6]
 
     movs_ate_agr = []
     done = False
@@ -331,7 +340,20 @@ def main():
                     Jogo = vira_mat("lvls/lvl1.txt")
 
                 elif event.key == pg.K_z:
-                    print(bfs(pos_objetivos,pos_paredes))
+                    resultado = [""]
+                    movs_resolve = Thread(target=bfs,args=(pos_objetivos,pos_paredes,resultado))
+                    movs_resolve.start()
+                    movs_resolve.join()
+                    
+                    print(resultado)
+
+                    for i in resultado[0]:
+                        auto_to_norm(i)
+                        time.sleep(0.2)
+
+                    if vencemo(kd_caixas()):
+                        print("deu bom")
+                    
 
         desenha_board()
                 
