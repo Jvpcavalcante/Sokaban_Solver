@@ -194,7 +194,9 @@ def bfs(pos_objetivos,pos_paredes,resultado):
         if vencemo(estado[-1][-1]):
             print("\ntempo: %.2f s" % (time.time() - t1))
             fim = str(acao_ate_aq)[5:-2].replace("', '","")
+            print(fim)
             resultado[0] = fim
+            auto_to_norm(fim)
             return fim
         
         if estado[-1] not in visto:
@@ -259,10 +261,12 @@ def norm_tenta_mov(direc):
             return mov[2]
 
 
-def auto_to_norm(carac):
+def auto_to_norm(s):
     dic = {"w":(-1,0),"s":(1,0),"a":(0,-1),"d":(0,1)}
-    norm_faz_movimento(kd_player(),dic[carac.lower()])
-    desenha_board()
+    for carac in s:
+        norm_faz_movimento(kd_player(),dic[carac.lower()])
+        desenha_board()
+        time.sleep(0.15)
         
 
 """
@@ -340,16 +344,20 @@ def main():
                     Jogo = vira_mat("lvls/lvl1.txt")
 
                 elif event.key == pg.K_z:
+                    """
+                    CASO VOLTE A PRECISAR DE THREADING
+
                     resultado = [""]
                     movs_resolve = Thread(target=bfs,args=(pos_objetivos,pos_paredes,resultado))
                     movs_resolve.start()
                     movs_resolve.join()
-                    
-                    print(resultado)
 
-                    for i in resultado[0]:
-                        auto_to_norm(i)
-                        time.sleep(0.2)
+                    print(resultado)
+                    """
+                    a = [""]
+                    bfs(pos_objetivos,pos_paredes,a)
+                    
+                    
 
                     if vencemo(kd_caixas()):
                         print("deu bom")
