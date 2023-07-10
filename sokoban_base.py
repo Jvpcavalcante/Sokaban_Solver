@@ -1,5 +1,5 @@
 import pygame as pg
-import heapq
+import heapq as pq
 from collections import deque
 import time
 from threading import Thread
@@ -12,22 +12,42 @@ ALT_X = 60
 ALT_Y = 60
 
 
+class PriorityQueue:
+    """Define a PriorityQueue data structure that will be used"""
+    def  __init__(self):
+        self.Heap = []
+        self.Count = 0
+
+    def push(self, item, priority):
+        entry = (priority, self.Count, item)
+        pq.heappush(self.Heap, entry)
+        self.Count += 1
+
+    def pop(self):
+        (_, _, item) = pq.heappop(self.Heap)
+        return item
+
+    def isEmpty(self):
+        return len(self.Heap) == 0
+
+
 """
 FUNCOES UTILITARIAS
 """
 
-def vira_mat(n_arq):
+def vira_mat(entrada):
     dic = {" ":0,"&":1,"B":2,".":3,"X":4,"#":5,}
     mat = []
     best = -1
-    with open(n_arq,"r") as arq:
-        for line in arq:
-            temp = []
-            best = max(best,len(line))
-            for j in range(len(line)):
-                if line[j] == "\n":break
-                temp.append(dic[line[j]])
-            mat.append(temp)
+    
+    for i in range(len(entrada)):
+        temp = []
+        best = max(best,len(entrada[i]))
+        for j in range(len(entrada[i])):
+            temp.append(dic[entrada[i][j]])
+        
+        mat.append(temp)
+
     
     for i in range(len(mat)):
         dif = best - len(mat[i])
@@ -35,14 +55,6 @@ def vira_mat(n_arq):
             mat[i].append(0)
 
     return mat
-
-def mostra(mat):
-    for i in range(len(mat)):
-        for j in range(len(mat[i])):
-            print(mat[i][j],end=" ")
-        print()
-
-
 
 def desenha_board():
     for i in range(len(Jogo)):
@@ -173,7 +185,8 @@ def heuristica(pos_objetivos, pos_caixas):
 def movs_sem_andar(movs):
     cnt = 0
     for i in range(len(movs)):
-        if movs[i][2].islower(): cnt += 1
+        if i == 0: continue
+        if movs[i].islower(): cnt += 1
 
     return cnt
 
@@ -188,13 +201,13 @@ def bfs(pos_objetivos,pos_paredes,resultado):
     visto = set()
 
     while st:
+        pg.event.pump()
         estado = st.popleft()
         acao_ate_aq = movs.popleft()
 
         if vencemo(estado[-1][-1]):
             print("\ntempo: %.2f s" % (time.time() - t1))
             fim = str(acao_ate_aq)[5:-2].replace("', '","")
-            print(fim)
             resultado[0] = fim
             auto_to_norm(fim)
             return fim
@@ -207,8 +220,43 @@ def bfs(pos_objetivos,pos_paredes,resultado):
                 if perdemo(novo_caixas,pos_objetivos,pos_paredes):
                     continue
 
-                st.append(estado + [(novo_player,novo_caixas)])
+                st.append([(novo_player,novo_caixas)])
                 movs.append(acao_ate_aq + [movimento[2]])
+
+
+
+def aStarSearch(pos_obj,pos_par):
+    """Implement aStarSearch approach"""
+    t1 = time.time()
+    beginBox = kd_caixas()
+    beginPlayer = kd_player()
+
+    start_state = (beginPlayer, beginBox)
+    frontier = PriorityQueue()
+    frontier.push([start_state], 0)
+    exploredSet = set()
+    actions = PriorityQueue()
+    actions.push([0], 0)
+    while frontier:
+        pg.event.pump()
+        node = frontier.pop()
+        node_action = actions.pop()
+        if vencemo(node[-1][-1]):
+            print("\ntempo: %.2f s" % (time.time() - t1))
+            fim = str(node_action)[5:-2].replace("', '","")
+            auto_to_norm(fim)
+            break
+        if node[-1] not in exploredSet:
+            exploredSet.add(node[-1])
+            Cost = movs_sem_andar(node_action[1:])
+            for action in auto_gerar_movimentos(node[-1][0], node[-1][1]):
+                newPosPlayer, newPosBox = auto_atualiza_estado(node[-1][0], node[-1][1], action)
+                if perdemo(newPosBox,pos_obj,pos_par):
+                    continue
+                Heuristic = heuristica(pos_obj, newPosBox)
+                frontier.push([(newPosPlayer, newPosBox)], Heuristic + Cost) 
+                actions.push(node_action + [action[-1]], Heuristic + Cost)
+
 
 """
 FUNCOES PARA O PLAYER
@@ -266,22 +314,112 @@ def auto_to_norm(s):
     for carac in s:
         norm_faz_movimento(kd_player(),dic[carac.lower()])
         desenha_board()
-        time.sleep(0.15)
+        pg.time.wait(150)
+        pg.event.pump()
         
 
 """
 A GRANDE E PODEROSA MAIN
 """
 
+def recupera_fases_originais():
+    dic = {}
+    try:
+        with open("fases_originais.txt","r") as arq:
+            for line in arq:
+                dic = eval(line)
+    except FileNotFoundError:
+        novo = open("fases_originais.txt","w")
+        novo.close()
+    
+    return dic
+
+def salvar_fases_originais(fases):
+    with open("fases_originais.txt","w") as arq:
+        arq.write(str(fases))
+
+def mostra_vencemo():
+    Janela.blit(imgs[7],(0,0))
+    
+    pg.display.flip()
+
 def main():
     global Janela, Tempo, Jogo, imgs
+
+    fases = recupera_fases_originais()
+    incompletos = {}
+
+    while 1:
+        print("BEM VINDO AO SOKOBAN!!!")
+        print("1 - Jogar")
+        print("2 - Editar fases")
+        print("3 - Sair")
+        resp = -1
+        while 1:
+            try:
+                resp = int(input("Escolha uma opcao: "))
+                if not (0<resp<4):
+                    raise ValueError
+            except:
+                print("ESCOLHA UM VALOR VALIDO!")
+            else:
+                break
+        
+        if resp == 1:
+            nome_fases = list(fases.keys())
+            print("Fases carregadas: ")
+            for nome in nome_fases:
+                print("-",nome)
+            
+            fase = ""
+            while 1:
+                try:
+                    fase = input("Qual fase voce deseja jogar: ")
+                    if fase not in nome_fases: raise ValueError
+                
+                except: print("Por favor escolha um valor valido")
+                else: break
+            break
+
+        if resp == 2:
+            print("1 - Adicionar nova fase")
+            print("2 - Excluir uma fase")
+            resp1 = -1
+            while 1:
+                try:
+                    resp1 = int(input("Escolha uma opcao: "))
+                    if not (0<resp1<3):
+                        raise ValueError
+                except:
+                    print("ESCOLHA UM VALOR VALIDO!")
+                else:
+                    break
+
+            if resp1 == 1:
+                mat = []
+                print("Insira a sua fase, quando tiver colocado todas as linhas digite -1")
+                nome_fase = input("escolha o nome da sua fase: ")
+                while 1:
+                    entrada = input()
+                    if entrada == "-1":break
+                    mat.append(entrada)
+                
+                fases[nome_fase] = mat
+
+            if resp1 == 2:
+                nome_fase = input("Qual o nome da fase que voce deseja excluir: ")
+                fases.pop(nome_fase)
+        
+        if resp == 3:
+            salvar_fases_originais(fases)
+            return 
+
     
     pg.init()
     Janela = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
     Tempo = pg.time.Clock()
-
-    Jogo = vira_mat("lvls/lvl3.txt")
-    mostra(Jogo)
+    
+    Jogo = vira_mat(fases[fase])
 
     pos_paredes = kd_paredes()
     pos_objetivos = kd_objetivos()
@@ -293,11 +431,13 @@ def main():
     f4 = pg.image.load("sprites/4.png").convert()
     f5 = pg.image.load("sprites/5.png").convert()
     f6 = pg.image.load("sprites/6.png").convert()
+    banner = pg.image.load("sprites/vencemo.png").convert()
 
-    imgs = [f0,f1,f2,f3,f4,f5,f6]
+    imgs = [f0,f1,f2,f3,f4,f5,f6,banner]
 
     movs_ate_agr = []
     done = False
+    ja_vencemo = False
     while not done:
         Janela.fill((0,0,0))
         Tempo.tick(60)
@@ -305,6 +445,7 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT:
                 done = True
+                salvar_fases_originais(fases)
 
             elif event.type == pg.MOUSEBUTTONDOWN:
                 print(movs_ate_agr)
@@ -315,54 +456,37 @@ def main():
                     carac = norm_tenta_mov((-1,0))
                     if carac: movs_ate_agr.append(carac)
 
-                    if vencemo(kd_caixas()):
-                        print("deu bom")
-
                 elif event.key == pg.K_s: 
                     carac = norm_tenta_mov((1,0))
                     if carac: movs_ate_agr.append(carac)
-
-                    if vencemo(kd_caixas()):
-                        print("deu bom")
                 
                 elif event.key == pg.K_a: 
                     carac = norm_tenta_mov((0,-1))
                     if carac: movs_ate_agr.append(carac)
 
-                    if vencemo(kd_caixas()):
-                        print("deu bom")
-
                 elif event.key == pg.K_d:
                     carac = norm_tenta_mov((0,1))
                     if carac: movs_ate_agr.append(carac)
 
-                    if vencemo(kd_caixas()):
-                        print("deu bom")
-
                 elif event.key == pg.K_r:
                     movs_ate_agr = []
-                    Jogo = vira_mat("lvls/lvl1.txt")
+                    Jogo = vira_mat(fases[fase])
 
                 elif event.key == pg.K_z:
-                    """
-                    CASO VOLTE A PRECISAR DE THREADING
-
-                    resultado = [""]
-                    movs_resolve = Thread(target=bfs,args=(pos_objetivos,pos_paredes,resultado))
-                    movs_resolve.start()
-                    movs_resolve.join()
-
-                    print(resultado)
-                    """
+                    print("Ta roubando ne danado kk")
+                    a = [""]
+                    aStarSearch(pos_objetivos,pos_paredes)
+                
+                elif event.key == pg.K_x:
+                    print("Ta roubando ne danado kk")
                     a = [""]
                     bfs(pos_objetivos,pos_paredes,a)
-                    
-                    
 
-                    if vencemo(kd_caixas()):
-                        print("deu bom")
-                    
-
-        desenha_board()
+        if ja_vencemo: mostra_vencemo()
+        else: 
+            desenha_board()
+            temp = vencemo(kd_caixas())
+            ja_vencemo = temp
+            if temp: pg.time.wait(2000)
                 
 main()
